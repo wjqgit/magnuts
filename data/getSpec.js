@@ -57,3 +57,29 @@ function getSpec(barcode, callback) {
     })
     return specs
 }
+
+//Option 1
+
+getSpec(6942980800260, function /*logResult*/(err, doc){
+    for(var key in doc){
+        console.log(key + ': '+ doc[key]);
+    }
+})
+
+//Option 2
+/*
+getSpec(6942980800260, function logResult(err, doc){
+    for(var key in doc){
+        console.log(key + ': '+ specs[key]);
+    }
+})
+*/
+//Option 3
+/*
+function logResult(err, doc){
+    for(var key in doc){
+        console.log(key + ': '+ specs[key]);
+    }
+}
+getSpec(6942980800260, logResult)
+*/
