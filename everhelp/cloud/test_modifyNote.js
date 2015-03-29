@@ -6,7 +6,8 @@ Parse.initialize("tOQcWFtNOQpSExXFPOAyRfdWw6HUw5tC4gxSiCib", "JmE2kQ6XJQUaFla71G
 var i = 32
 
 Parse.Cloud.run('modifyNote', {
-    title: 'Testing ' + i.toString(),
+    title: 'strong guy needed',
+    //+ i.toString(),
     status: 'completed'
 }, {
     success: function(notes) {

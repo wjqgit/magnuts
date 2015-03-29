@@ -1,5 +1,6 @@
 // Use Parse.Cloud.define to define as many cloud functions as you want.
-// For example:
+// 
+// For example: 
 Parse.Cloud.define("hello", function(request, response) {
     response.success("Hello world!");
 });
@@ -310,11 +311,12 @@ Parse.Cloud.define('addUserToInstallation', function(request, response) {
     })
 })
 
+//After a new task is posted by User A, send notification to other nearby users
 Parse.Cloud.define('pushNewPost', function(request, response) {
     var point = request.params.location
     var userQuery = new Parse.Query(Parse.User)
     userQuery.near('location', point)
-    userQuery.limit(10)
+    userQuery.limit(20)
     userQuery.notEqualTo('username', request.params.username)
     var pushQuery = new Parse.Query(Parse.Installation)
     pushQuery.matchesQuery('user', userQuery)
@@ -333,6 +335,7 @@ Parse.Cloud.define('pushNewPost', function(request, response) {
     })
 })
 
+//After a task is accepted by User B, send notifcation to User A
 Parse.Cloud.define('pushAcceptance', function(request, response) {
     var userQuery = new Parse.Query(Parse.User)
     userQuery.equalTo('username', request.params.username)
@@ -353,6 +356,7 @@ Parse.Cloud.define('pushAcceptance', function(request, response) {
     })
 })
 
+//After a task is completed by User B, send notification to both User A and User B
 Parse.Cloud.define('pushCompletion', function(request, response) {
     var userAQuery = new Parse.Query(Parse.User)
     userAQuery.equalTo('username', request.params.username)
@@ -369,10 +373,101 @@ Parse.Cloud.define('pushCompletion', function(request, response) {
         data: data
     }, {
         success: function() {
-            response.success('Push Acceptance Succeeded!');
+            response.success('Push Completion Succeeded!');
         },
         error: function() {
-            response.error('Push Acceptance Failed!')
+            response.error('Push Completion Failed!')
+        }
+    })
+
+})
+
+Parse.Cloud.define('completion', function(request, response) {
+    console.log('Granting Process Starts!');
+    //For push notification
+    var userAQuery = new Parse.Query(Parse.User)
+    userAQuery.equalTo('username', request.params.username)
+    var userBQuery = new Parse.Query(Parse.User)
+    userBQuery.equalTo('username', request.params.helpername)
+    var userQuery = Parse.Query.or(userAQuery, userBQuery)
+    var pushQuery = new Parse.Query(Parse.Installation)
+    pushQuery.matchesQuery('user', userQuery)
+
+    data = {}
+    data.alert = 'Task Completed!'
+    //For granting
+    Parse.Cloud.useMasterKey()
+    var query = new Parse.Query(Parse.User),
+        reward = request.params.reward,
+        shareToUser = Math.random() * (reward.toFixed(2))
+    shareToUser = parseFloat(shareToUser.toFixed(2))
+    var shareToCharity = reward - shareToUser
+    query.equalTo('username', 'escrow')
+    query.first({
+        success: function(escrow) {
+            escrow.set('cash', escrow.get('cash') - reward)
+            escrow.save(null, {
+                success: function(escrow) {
+                    query.equalTo('username', request.params.helpername)
+                    query.first({
+                        success: function(user) {
+                            user.set('cash', user.get('cash') + shareToUser)
+                            user.save(null, {
+                                success: function(user) {
+                                    console.log('User B Got: $' + shareToUser + ' !');
+                                    query.equalTo('username', 'charity')
+                                    query.first({
+                                        success: function(charity) {
+                                            charity.set('cash', charity.get('cash') + shareToCharity)
+                                            charity.save(null, {
+                                                success: function(charity) {
+                                                    console.log('Donated to Charity: $' + shareToCharity + ' !')
+                                                    data.alert = data.alert + ' $' + shareToCharity + ' donated and $' + shareToUser + 'earned!'
+                                                    Parse.Push.send({
+                                                        where: pushQuery,
+                                                        data: data
+                                                    }, {
+                                                        success: function() {
+                                                            response.success('Push Acceptance Succeeded!');
+                                                        },
+                                                        error: function() {
+                                                            response.error('Push Acceptance Failed!')
+                                                        }
+                                                    })
+                                                },
+                                                error: function(err) {
+                                                    console.log('Value Adding to Charity Failed!')
+                                                    response.error(err.message)
+                                                }
+                                            })
+                                        },
+                                        error: function(err) {
+                                            console.log('Error Loading Escrow Account!')
+                                            response.error(err.message)
+                                        }
+                                    })
+                                },
+                                error: function(err) {
+                                    console.log('Value Adding to User B Failed!')
+                                    response.error(err.message)
+                                }
+                            })
+                        },
+                        error: function(err) {
+                            console.log('User A Not Found!')
+                            response.error(err.message)
+                        }
+                    })
+                },
+                error: function(err) {
+                    console.log('Value Deduction from Escrow Failed!')
+                    response.error(err.message)
+                }
+            })
+        },
+        error: function(err) {
+            console.log('Error Loading Escrow Account!')
+            response.error(err.message)
         }
     })
 
@@ -407,6 +502,7 @@ Parse.Cloud.afterSave('Note', function(request, response) {
         })
     } else if (note.get('status') == 'completed') {
         console.log('Task Completed');
+        /*
         Parse.Cloud.run('escrowToUserB', {
             helpername: note.get('helpername'),
             reward: note.get('reward')
@@ -417,6 +513,12 @@ Parse.Cloud.afterSave('Note', function(request, response) {
         Parse.Cloud.run('pushCompletion', {
             username: note.get('username'),
             helpername: note.get('helpername')
+        })
+*/
+        Parse.Cloud.run('completion', {
+            username: note.get('username'),
+            helpername: note.get('helpername'),
+            reward: note.get('reward')
         })
     }
 
